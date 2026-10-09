@@ -1,0 +1,235 @@
+# 服务器高并发改造方案
+
+**目标**：支撑 10000 连接接入 + 200-300 并发业务处理
+
+---
+
+## 当前架构总览
+
+```mermaid
+graph LR
+    C["客户端 x N"] -->|TCP| F["前置服务器<br>epoll + 4线程池"]
+    F -->|SysV 消息队列| B["后端服务器<br>单线程循环"]
+    B -->|单连接| D["MySQL"]
+    F <-->|共享内存 4MB| B
+```
+
+---
+
+## 改造项一览
+
+| # | 改造项 | 文件 | 优先级 | 效果 |
+|---|--------|------|--------|------|
+| 1 | 后端多线程处理 | [Server_Back/main.cpp](file:///e:/Linux_workspace/Server_Back/main.cpp) | 🔴 P0 | 并发能力从 1 → 32+ |
+| 2 | 数据库连接池 | `Server_Back/` 新增 `dbpool.h/cpp` | 🔴 P0 | DB 并发从 1 → 20-50 |
+| 3 | 前置线程池扩容 | [Server_Front/main.cpp](file:///e:/Linux_workspace/Server_Front/main.cpp) | 🟡 P1 | 包处理吞吐量 4x → 16x |
+| 4 | epoll 参数调优 | [Server_Front/epollserver.h](file:///e:/Linux_workspace/Server_Front/epollserver.h) | 🟡 P1 | 每轮事件处理上限提升 |
+| 5 | 心跳检测优化 | [Server_Front/epollserver.cpp](file:///e:/Linux_workspace/Server_Front/epollserver.cpp) | 🟢 P2 | 万级连接下不卡主循环 |
+| 6 | 客户端缓冲区优化 | [Server_Front/epollserver.h](file:///e:/Linux_workspace/Server_Front/epollserver.h) | 🟢 P2 | 查找 O(logN) → O(1) |
+
+---
+
+## 改造项 1：后端多线程处理（最关键）
+
+**当前问题**：[Server_Back/main.cpp](file:///e:/Linux_workspace/Server_Back/main.cpp) 第 515-521 行，单线程阻塞循环串行处理所有请求。
+
+#### [MODIFY] [main.cpp](file:///e:/Linux_workspace/Server_Back/main.cpp)
+
+**方案**：引入线程池（复用 [Server_Front/threadpool.h](file:///e:/Linux_workspace/Server_Front/threadpool.h)），多个 worker 并发取消息处理。
+
+```diff
+ // 主循环 - 改前
+-while (g_running) {
+-    IpcMessage msg;
+-    if (g_msgFromFront->receive(msg, 0, true)) {
+-        processRequest(msg);
+-    }
+-}
+
+ // 主循环 - 改后：多线程消费
++#define BACK_WORKER_COUNT 32
++pthread_t workers[BACK_WORKER_COUNT];
++for (int i = 0; i < BACK_WORKER_COUNT; i++) {
++    pthread_create(&workers[i], nullptr, [](void*) -> void* {
++        while (g_running) {
++            IpcMessage msg;
++            if (g_msgFromFront->receive(msg, 0, true)) {
++                processRequest(msg);
++            }
++        }
++        return nullptr;
++    }, nullptr);
++}
++for (int i = 0; i < BACK_WORKER_COUNT; i++) {
++    pthread_join(workers[i], nullptr);
++}
+```
+
+> [!IMPORTANT]
+> [processRequest](file:///e:/Linux_workspace/Server_Back/main.cpp#422-468) 内部用到的全局变量（`g_sessions`、`g_smsCodes`、`g_uploads`）需要加互斥锁保护。
+
+```cpp
+// 每个全局 map 配一把锁
+static pthread_mutex_t g_sessionsMutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t g_smsCodesMutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t g_uploadsMutex  = PTHREAD_MUTEX_INITIALIZER;
+```
+
+---
+
+## 改造项 2：数据库连接池
+
+**当前问题**：`DBConnection::getInstance()` 是单例单连接，多线程下串行等待。
+
+#### [NEW] [dbpool.h](file:///e:/Linux_workspace/Server_Back/dbpool.h)
+#### [NEW] [dbpool.cpp](file:///e:/Linux_workspace/Server_Back/dbpool.cpp)
+
+**方案**：实现简单的连接池，预创建 N 个连接，线程从池中借用/归还。
+
+```cpp
+class DBPool {
+public:
+    static DBPool& instance();
+    void init(const std::string& host, const std::string& user,
+              const std::string& pwd, const std::string& db, int poolSize = 20);
+
+    // RAII 方式获取连接
+    class Connection {
+    public:
+        Connection(DBPool& pool);
+        ~Connection();  // 自动归还
+        MYSQL* get();
+    private:
+        DBPool& m_pool;
+        MYSQL* m_conn;
+    };
+
+private:
+    std::queue<MYSQL*> m_pool;
+    pthread_mutex_t m_mutex;
+    pthread_cond_t m_cond;
+};
+```
+
+**使用方式**：
+```cpp
+void handleLogin(...) {
+    DBPool::Connection conn(DBPool::instance());
+    // 使用 conn.get() 代替 DBConnection::getInstance()
+    mysql_query(conn.get(), sql);
+}
+```
+
+---
+
+## 改造项 3：前置线程池扩容
+
+#### [MODIFY] [main.cpp](file:///e:/Linux_workspace/Server_Front/main.cpp)
+
+```diff
+-g_threadPool = new ThreadPool(4);
++g_threadPool = new ThreadPool(16);  // 4 → 16
+```
+
+> [!NOTE]
+> 前置线程池主要做包解析和 IPC 转发，CPU 开销不大。16 线程足够应对 200-300 并发的包到达速率。如果还不够可以继续增大到 32。
+
+---
+
+## 改造项 4：epoll 参数调优
+
+#### [MODIFY] [epollserver.h](file:///e:/Linux_workspace/Server_Front/epollserver.h)
+
+```diff
+-static const int MAX_EVENTS = 1024;
+-static const int BUFFER_SIZE = 4096;
++static const int MAX_EVENTS = 4096;   // 每轮处理更多就绪事件
++static const int BUFFER_SIZE = 8192;  // 缓冲区适当增大
+```
+
+同时 `listen` backlog 已经用了 `SOMAXCONN`（通常 128），Linux 下可改内核参数：
+```bash
+echo 4096 > /proc/sys/net/core/somaxconn
+```
+
+**文件描述符上限**（默认 1024）：
+```bash
+ulimit -n 65535
+# 或在 /etc/security/limits.conf 中设置
+```
+
+---
+
+## 改造项 5：心跳检测优化
+
+**当前问题**：[checkHeartbeatTimeout()](file:///e:/Linux_workspace/Server_Front/epollserver.cpp#326-341) 每 1 秒遍历全部连接的 `std::map`，10000 连接 = 每秒 10000 次比较。
+
+#### [MODIFY] [epollserver.h](file:///e:/Linux_workspace/Server_Front/epollserver.h)
+#### [MODIFY] [epollserver.cpp](file:///e:/Linux_workspace/Server_Front/epollserver.cpp)
+
+**方案**：降低检测频率 + 时间轮优化。
+
+```diff
+ // 简单方案：降低检测频率（5秒一次）
++static int s_heartbeatCounter = 0;
+ void EpollServer::run() {
+     while (m_running) {
+         int nfds = epoll_wait(m_epollFd, events, MAX_EVENTS, 1000);
+         // ... 事件处理 ...
+-        checkHeartbeatTimeout();
++        if (++s_heartbeatCounter % 5 == 0) {
++            checkHeartbeatTimeout();
++        }
+     }
+ }
+```
+
+---
+
+## 改造项 6：客户端缓冲区容器优化
+
+#### [MODIFY] [epollserver.h](file:///e:/Linux_workspace/Server_Front/epollserver.h)
+
+```diff
+-#include <map>
++#include <unordered_map>
+
+-std::map<int, ClientBuffer*> m_clientBuffers;
+-std::map<int, time_t> m_lastActivity;
++std::unordered_map<int, ClientBuffer*> m_clientBuffers;
++std::unordered_map<int, time_t> m_lastActivity;
+```
+
+10000 连接时查找：`map` O(log 10000) ≈ 13 次比较 → `unordered_map` O(1)。
+
+---
+
+## 改造后架构
+
+```mermaid
+graph LR
+    C["客户端 x 10000"] -->|TCP| F["前置服务器<br>epoll(4096) + 16线程池"]
+    F -->|SysV 消息队列| B["后端服务器<br>32 Worker 线程"]
+    B -->|连接池 x20| D["MySQL"]
+    F <-->|共享内存 4MB| B
+```
+
+---
+
+## 预期效果
+
+| 指标 | 改造前 | 改造后 |
+|------|--------|--------|
+| 最大连接数 | ~1024 (fd 限制) | 10000+ |
+| 并发业务处理 | 1 (串行) | 32 (后端线程数) |
+| DB 并发查询 | 1 | 20 |
+| 每轮 epoll 事件 | 1024 | 4096 |
+| 心跳检测开销 | 每秒遍历全量 | 每 5 秒一次 |
+
+---
+
+## 实施顺序
+
+1. **P0**：后端多线程 + 数据库连接池（这两项解决根本瓶颈）
+2. **P1**：前置线程池扩容 + epoll 调参 + `ulimit` 设置
+3. **P2**：心跳优化 + `unordered_map` 替换

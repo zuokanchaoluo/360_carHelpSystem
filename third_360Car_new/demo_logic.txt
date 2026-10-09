@@ -1,0 +1,183 @@
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <iostream>
+#include <opencv/cv.hpp>
+#include <opencv/cvaux.h>
+#include <windows.h>
+#include <stdio.h>
+#pragma comment(lib, "Winmm.lib")
+
+using namespace std;
+using namespace cv;
+
+
+//全局变量定义
+bool a(false);
+int i = 1;
+
+int main()
+{
+    //打开视频文件：其实就是建立一个VideoCapture结构
+    VideoCapture capture("E:/image/车库视频2.mp4");
+    //检测是否正常打开:成功打开时，isOpened返回ture
+    if (!capture.isOpened())
+        cout << "fail to open!" << endl;
+    //获取整个帧数
+    long totalFrameNumber = capture.get(CV_CAP_PROP_FRAME_COUNT);
+    cout << "整个视频共" << totalFrameNumber << "帧" << endl;
+
+
+
+    //设置开始帧()
+    long frameToStart = 0;
+    capture.set(CV_CAP_PROP_POS_FRAMES, frameToStart);
+    cout << "从第" << frameToStart << "帧开始读" << endl;
+
+
+    //设置结束帧
+    int frameToStop = totalFrameNumber;
+    if (frameToStop < frameToStart)
+    {
+        cout << "结束帧小于开始帧，程序错误，即将退出！" << endl;
+        return -1;
+    }
+    else
+    {
+        cout << "结束帧为：第" << frameToStop << "帧" << endl;
+    }
+
+
+    //获取帧率
+    double rate = capture.get(CV_CAP_PROP_FPS);
+    cout << "帧率为:" << rate << endl;
+
+    //定义一个用来控制读取视频循环结束的变量
+    bool stop = false;
+    //承载每一帧的图像
+    Mat frame;
+    Mat grayImage;
+    Mat binaryImage;
+    Mat reverseBinaryImage;
+    Mat imgROI;
+    Mat drawing;
+    //显示每一帧的窗口
+     // namedWindow("frame");
+    //两帧间的间隔时间:
+    int delay = 10;
+    //利用while循环读取帧
+    //currentFrame是在循环体中控制读取到指定的帧后循环结束的变量
+    long currentFrame = frameToStart;
+
+    while (!stop)
+    {
+        //读取下一帧
+        if (!capture.read(frame))
+        {
+            cout << "读取失败" << endl;
+            return -1;
+        }
+        if (currentFrame % 1 == 0)
+        {
+            cout << "正在读取第" << currentFrame << "帧" << endl;
+            imshow("frame",frame);
+            waitKey(delay);
+            /****ROI****/
+            if (!a)
+            {
+                cout << "图像的宽度：" << frame.size().width << ",图像的高度：" << frame.size().height << endl;
+                a = true;
+            }
+            Mat mask = Mat::zeros(frame.size().height,frame.size().width,CV_8UC1); // 八位单通道
+             //梯形ROI
+            //vector(向量): C++中的一种数据结构,确切的说是一个类.它相当于一个动态的数组  相当于存放点的坐标的容器
+            vector<vector<Point>> contour;  //vector<vector<Point>>。外层vector的size代表了图像中轮廓的个数，里面vector的size代表了轮廓上点的个数。
+            vector<Point> pts;
+            pts.push_back(Point(140, 400));
+            pts.push_back(Point(400, 400));
+            pts.push_back(Point(540, 700));
+            pts.push_back(Point(0, 700));
+            //push_back   在数组的最后添加一个数据  即将四个坐标点依次存入数组
+            contour.push_back(pts);
+            drawContours(mask, contour, 0, Scalar::all(255), -1);
+            frame.copyTo(imgROI, mask); // 将 frame 的位于 mask 中的部分，拷贝到 imgROI 中。
+            imshow("ROI",imgROI);
+
+            //去噪
+            //blur(imgROI,grayImage,Size(3, 3));
+            medianBlur(imgROI, grayImage, 3);
+
+            //灰度处理
+            cvtColor(grayImage, grayImage, CV_BGR2GRAY);
+
+            threshold(grayImage, binaryImage, 90, 255, CV_THRESH_BINARY); //转换为二值图
+            //imshow("threshold", binaryImage);
+            //开运算和形态学梯度
+
+            Mat element = getStructuringElement(MORPH_RECT, Size(15, 15));
+            morphologyEx(binaryImage, binaryImage, MORPH_OPEN, element);
+
+            Mat element1 = getStructuringElement(MORPH_RECT, Size(2, 2));
+            morphologyEx(binaryImage, binaryImage, MORPH_GRADIENT, element1);
+            //namedWindow("预处理");
+            //imshow("morphologyEx", binaryImage);
+            /*轮廓提取*/
+            vector< vector< Point> > contours;
+            findContours(binaryImage, contours, CV_RETR_EXTERNAL, CV_RETR_TREE);
+            vector<vector<Point> >::iterator itc = contours.begin();
+            while (itc != contours.end())
+            {
+                if (itc->size() < 100)
+                {
+                    itc = contours.erase(itc);  //删除轮廓
+                }
+                else
+                {
+                    ++itc;
+                }
+            }
+            drawContours(binaryImage, contours, -1, Scalar(255), 1);
+            imshow("binaryImage", binaryImage);
+
+            //计算轮廓的面积
+            for (int i = 0; i < (int)contours.size(); i++)
+            {
+                double g_dConArea = contourArea(contours[i], false);
+
+                cout << "【无障碍区域轮廓的面积为：】" << g_dConArea << endl;
+                if (g_dConArea < 100000)//报警
+                {
+                    double distance;
+                    distance = g_dConArea / 10000;
+                    //printf("%f,%f,%f\n", distance);
+                    char buf[100];
+                    printf("离前车距离：");
+                    printf("%f\2", distance);
+                    printf("米");
+                    //printf(buf,"%f,%f,%f\n", distance);
+                    if(distance < 1.5)
+                    {
+                        //写字
+                        //putText(frame,"waring",Point(100,100),FONT_HERSHEY_SIMPLEX,2,Scalar(0,0,255),4,8);
+                        //imshow("frame",frame);
+                        //MessageBeep(MB_OK);
+                        cout << "\n前方有障碍物！\n" << endl;
+                        MessageBox(0, TEXT("车距过近，请注意安全！"), TEXT("车距预警"), MB_OK);
+                        //MessageBox(0, TEXT("离前车距离："),  buf, MB_OK);
+                    }
+                }
+
+            }
+            if (currentFrame > frameToStop)
+            {
+                stop = true;
+            }
+
+        }
+        currentFrame++;
+
+    }
+    //关闭视频文件
+    capture.release();
+    waitKey(0);
+    return 0;
+}

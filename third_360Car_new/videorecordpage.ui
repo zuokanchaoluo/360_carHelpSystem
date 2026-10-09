@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>VideoRecordPage</class>
+ <widget class="QWidget" name="VideoRecordPage">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>600</width>
+    <height>500</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>视频记录</string>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">background-color: #1A1A2E;</string>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QLabel" name="lblTitle">
+     <property name="maximumSize">
+      <size>
+       <width>16777215</width>
+       <height>50</height>
+      </size>
+     </property>
+     <property name="styleSheet">
+      <string notr="true">color: white; font-size: 22px; font-weight: bold; padding: 8px;</string>
+     </property>
+     <property name="text">
+      <string>行车视频记录</string>
+     </property>
+     <property name="alignment">
+      <set>Qt::AlignCenter</set>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QListWidget" name="listWidget">
+     <property name="styleSheet">
+      <string notr="true">
+QListWidget {
+    background-color: #1A1A2E;
+    border: none;
+    outline: none;
+}
+QListWidget::item {
+    background-color: #2A2A3A;
+    border-radius: 6px;
+    margin: 4px 8px;
+    padding: 4px;
+}
+QListWidget::item:hover {
+    background-color: #3A3A4A;
+}
+QListWidget::item:selected {
+    background-color: #3A3A5A;
+    border: 1px solid #00BFFF;
+}
+      </string>
+     </property>
+     <property name="horizontalScrollBarPolicy">
+      <enum>Qt::ScrollBarAlwaysOff</enum>
+     </property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

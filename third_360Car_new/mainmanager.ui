@@ -1,0 +1,154 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainManager</class>
+ <widget class="QWidget" name="MainManager">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>800</width>
+    <height>500</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>Main Manager</string>
+  </property>
+  <property name="styleSheet">
+   <string notr="true">QWidget#MainManager { background-color: #2A2A3A; }</string>
+  </property>
+  <layout class="QHBoxLayout" name="mainLayout">
+   <property name="spacing">
+    <number>0</number>
+   </property>
+   <property name="leftMargin"><number>0</number></property>
+   <property name="topMargin"><number>0</number></property>
+   <property name="rightMargin"><number>0</number></property>
+   <property name="bottomMargin"><number>0</number></property>
+   <item>
+    <widget class="QWidget" name="navPanel" native="true">
+     <property name="minimumSize">
+      <size><width>120</width><height>0</height></size>
+     </property>
+     <property name="maximumSize">
+      <size><width>120</width><height>16777215</height></size>
+     </property>
+     <property name="styleSheet">
+      <string notr="true">QWidget#navPanel { background-color: #1E90FF; border-right: 2px solid #0066CC; }</string>
+     </property>
+     <layout class="QVBoxLayout" name="navLayout">
+      <property name="spacing"><number>8</number></property>
+      <item>
+       <widget class="QPushButton" name="btnAvatar">
+        <property name="minimumSize">
+         <size><width>64</width><height>64</height></size>
+        </property>
+        <property name="maximumSize">
+         <size><width>64</width><height>64</height></size>
+        </property>
+        <property name="styleSheet">
+         <string notr="true">QPushButton { border-radius: 32px; background-color: #555; border: 2px solid white; } QPushButton:hover { border-color: #00BFFF; }</string>
+        </property>
+        <property name="text"><string/></property>
+        <property name="iconSize">
+         <size><width>60</width><height>60</height></size>
+        </property>
+       </widget>
+      </item>
+      <item alignment="Qt::AlignHCenter">
+       <widget class="QLabel" name="lblUsername">
+        <property name="text"><string>点击登录</string></property>
+        <property name="alignment"><set>Qt::AlignCenter</set></property>
+        <property name="styleSheet"><string notr="true">color: white; font-size: 12px;</string></property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="btnLogout">
+        <property name="text"><string>退 出</string></property>
+        <property name="styleSheet"><string notr="true">QPushButton { background-color: #FF6347; color: white; border-radius: 4px; font-weight: bold; } QPushButton:hover { background-color: #FF4500; }</string></property>
+        <property name="visible"><bool>false</bool></property>
+       </widget>
+      </item>
+      <item>
+       <spacer name="vSpacer1">
+        <property name="orientation"><enum>Qt::Vertical</enum></property>
+        <property name="sizeType"><enum>QSizePolicy::Fixed</enum></property>
+        <property name="sizeHint" stdset="0"><size><width>20</width><height>20</height></size></property>
+       </spacer>
+      </item>
+      <item>
+       <widget class="QPushButton" name="btnVideoRecord">
+        <property name="text"><string>视频记录</string></property>
+        <property name="checkable"><bool>true</bool></property>
+        <property name="autoExclusive"><bool>true</bool></property>
+        <property name="styleSheet"><string notr="true">QPushButton { background-color: #40A0FF; color: white; border-radius: 4px; padding: 8px; font-weight: bold; } QPushButton:checked { background-color: #0066CC; }</string></property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="btnDrivingMode">
+        <property name="text"><string>行车模式</string></property>
+        <property name="checkable"><bool>true</bool></property>
+        <property name="autoExclusive"><bool>true</bool></property>
+        <property name="styleSheet"><string notr="true">QPushButton { background-color: #40A0FF; color: white; border-radius: 4px; padding: 8px; font-weight: bold; } QPushButton:checked { background-color: #0066CC; }</string></property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="btnReverseMode">
+        <property name="text"><string>倒车模式</string></property>
+        <property name="checkable"><bool>true</bool></property>
+        <property name="autoExclusive"><bool>true</bool></property>
+        <property name="styleSheet"><string notr="true">QPushButton { background-color: #40A0FF; color: white; border-radius: 4px; padding: 8px; font-weight: bold; } QPushButton:checked { background-color: #0066CC; }</string></property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="btnBirdView">
+        <property name="text"><string>鸟瞰模式</string></property>
+        <property name="checkable"><bool>true</bool></property>
+        <property name="autoExclusive"><bool>true</bool></property>
+        <property name="styleSheet"><string notr="true">QPushButton { background-color: #40A0FF; color: white; border-radius: 4px; padding: 8px; font-weight: bold; } QPushButton:checked { background-color: #0066CC; }</string></property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="btnFeatureMemory">
+        <property name="text"><string>特征记忆</string></property>
+        <property name="checkable"><bool>true</bool></property>
+        <property name="autoExclusive"><bool>true</bool></property>
+        <property name="styleSheet"><string notr="true">QPushButton { background-color: #40A0FF; color: white; border-radius: 4px; padding: 8px; font-weight: bold; } QPushButton:checked { background-color: #0066CC; }</string></property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QPushButton" name="btnSystemSettings">
+        <property name="text"><string>系统设置</string></property>
+        <property name="checkable"><bool>true</bool></property>
+        <property name="autoExclusive"><bool>true</bool></property>
+        <property name="styleSheet"><string notr="true">QPushButton { background-color: #40A0FF; color: white; border-radius: 4px; padding: 8px; font-weight: bold; } QPushButton:checked { background-color: #0066CC; }</string></property>
+       </widget>
+      </item>
+      <item>
+       <spacer name="vSpacer2">
+        <property name="orientation"><enum>Qt::Vertical</enum></property>
+        <property name="sizeHint" stdset="0"><size><width>20</width><height>40</height></size></property>
+       </spacer>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QPushButton" name="btnToggleNav">
+     <property name="minimumSize"><size><width>20</width><height>0</height></size></property>
+     <property name="maximumSize"><size><width>20</width><height>16777215</height></size></property>
+     <property name="text"><string notr="true">◀</string></property>
+     <property name="styleSheet">
+      <string notr="true">QPushButton { background-color: #1A1A2A; color: #AAA; border: none; font-size: 14px; } QPushButton:hover { color: white; background-color: #333; }</string>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <widget class="QStackedWidget" name="stackedWidget">
+     <property name="currentIndex"><number>0</number></property>
+    </widget>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

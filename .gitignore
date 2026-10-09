@@ -1,0 +1,36 @@
+# 编译产物与构建目录
+bin/
+obj/
+build/
+*.o
+*.out
+*.exe
+*.app
+server_front
+server_back
+third_360Car
+
+# Qt / qmake 生成文件
+third_360Car_new/Makefile*
+*.pro.user
+*.pro.user.*
+*.qmake.stash
+moc_*
+ui_*
+qrc_*
+debug/
+release/
+
+# Visual Studio / VSCode / 插件缓存文件
+.vs/
+.vscode/
+.specstory/
+*.VC.db
+*.VC.opendb
+*.sdf
+*.suo
+*.user
+
+# 运行时数据与日志
+uploads/
+*.log
